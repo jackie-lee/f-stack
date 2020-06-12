@@ -507,6 +507,28 @@ NETIPFW_SRCS+=             \
 	ip_fw2.c
 endif
 
+NETINET_SRCS+=		\
+	sctp_sysctl.c	\
+	sctp_pcb.c		\
+	sctp_output.c	\
+	sctp_syscalls.c	\
+	sctp_auth.c		\
+	sctp_input.c	\
+	sctp_usrreq.c	\
+	sctp_ss_functions.c	\
+	sctp_timer.c		\
+	sctp_cc_functions.c	\
+	sctp_bbr.c		\
+	sctp_peeloff.c		\
+	sctp_crc32.c		\
+	sctp_bsd_addr.c		\
+	sctp_indata.c		\
+	sctp_bsn.c		\
+	sctp_rate.c		\
+	sctp_asconf.c 		\
+	sctputil.c		\
+	sctp_fec.c
+
 ifdef FF_IPSEC
 NETINET_SRCS+=		\
 	ip_ipsec.c

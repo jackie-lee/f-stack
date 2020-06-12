@@ -128,6 +128,54 @@ int ff_dup2(int oldfd, int newfd);
 
 /* POSIX-LIKE api end */
 
+/* sctp api begin */
+
+#include "mbuf.h"
+
+struct linux_sctp_sndrcvinfo {
+    uint16_t sinfo_stream;
+    uint16_t sinfo_ssn;
+    uint16_t sinfo_flags;
+    uint32_t sinfo_ppid;
+    uint32_t sinfo_context;
+    uint32_t sinfo_timetolive;
+    uint32_t sinfo_tsn;
+    uint32_t sinfo_cumtsn;
+    sctp_assoc_t sinfo_assoc_id;
+};
+
+ssize_t ff_readm(int fd, struct mbuf **mp);
+ssize_t ff_writem(int fd, struct mbuf *m);
+
+int ff_sctp_recvmsg(int s, void *data, size_t len,
+    struct linux_sockaddr *from, socklen_t *fromlen,
+    struct linux_sctp_sndrcvinfo *sinfo, int *msg_flags);
+
+
+int ff_sctp_sendmsg(int s, const void *msg, size_t len,
+    const struct sockaddr *to, socklen_t tolen, uint32_t ppid,
+    uint32_t flags, uint16_t stream_no, uint32_t timetolive,
+    uint32_t context);
+
+int
+ff_sctp_recvm(int s, struct mbuf **mp,
+    struct linux_sockaddr *from, socklen_t *fromlen,
+    struct linux_sctp_sndrcvinfo *sinfo, int *msg_flags);
+
+int
+ff_sctp_sendm(int s, const struct mbuf *m,
+    const struct linux_sockaddr *to, socklen_t tolen, uint32_t ppid,
+    uint32_t flags, uint16_t stream_no, uint32_t timetolive,
+    uint32_t context);
+
+/* mbuf api begin */
+void ff_mbuf_free(void *m);
+int ff_mbuf_copydata(void *m, void *data, int off, int len);
+struct mbuf *ff_mbuf_dup(struct mbuf *m, int length);
+struct mbuf *ff_datatombuf(caddr_t data, ssize_t length);
+/* mbuf api end */
+
+/* sctp api end */
 
 /* Tests if fd is used by F-Stack */
 extern int ff_fdisused(int fd);

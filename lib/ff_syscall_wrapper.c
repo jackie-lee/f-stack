@@ -57,6 +57,12 @@
 
 #include <machine/stdarg.h>
 
+/* for sctp */
+#include <sys/capsicum.h>
+#include <sys/mbuf.h>
+#include <netinet/sctp_uio.h>
+/* for sctp */
+
 #include "ff_api.h"
 #include "ff_host_interface.h"
 
@@ -101,6 +107,57 @@
 #define LINUX_TCP_KEEPCNT     6
 #define LINUX_TCP_INFO        11
 #define LINUX_TCP_MD5SIG      14
+
+/* sctp option begin */
+
+#define LINUX_SCTP_RTOINFO    0
+#define LINUX_SCTP_ASSOCINFO  1
+#define LINUX_SCTP_INITMSG    2
+#define LINUX_SCTP_NODELAY    3               /* Get/set nodelay option. */
+#define LINUX_SCTP_AUTOCLOSE  4
+#define LINUX_SCTP_SET_PEER_PRIMARY_ADDR 5
+#define LINUX_SCTP_PRIMARY_ADDR       6
+#define LINUX_SCTP_ADAPTATION_LAYER   7
+#define LINUX_SCTP_DISABLE_FRAGMENTS  8
+#define LINUX_SCTP_PEER_ADDR_PARAMS   9
+#define LINUX_SCTP_DEFAULT_SEND_PARAM 10
+#define LINUX_SCTP_EVENTS     11
+#define LINUX_SCTP_I_WANT_MAPPED_V4_ADDR 12   /* Turn on/off mapped v4 addresses  */
+#define LINUX_SCTP_MAXSEG     13              /* Get/set maximum fragment. */
+#define LINUX_SCTP_STATUS     14
+#define LINUX_SCTP_GET_PEER_ADDR_INFO 15
+#define LINUX_SCTP_DELAYED_ACK_TIME   16
+#define LINUX_SCTP_DELAYED_ACK LINUX_SCTP_DELAYED_ACK_TIME
+#define LINUX_SCTP_DELAYED_SACK LINUX_SCTP_DELAYED_ACK_TIME
+#define LINUX_SCTP_CONTEXT    17
+#define LINUX_SCTP_FRAGMENT_INTERLEAVE        18
+#define LINUX_SCTP_PARTIAL_DELIVERY_POINT     19 /* Set/Get partial delivery point */
+#define LINUX_SCTP_MAX_BURST  20              /* Set/Get max burst */
+#define LINUX_SCTP_AUTH_CHUNK 21      /* Set only: add a chunk type to authenticate */
+#define LINUX_SCTP_HMAC_IDENT 22
+#define LINUX_SCTP_AUTH_KEY   23
+#define LINUX_SCTP_AUTH_ACTIVE_KEY    24
+#define LINUX_SCTP_AUTH_DELETE_KEY    25
+#define LINUX_SCTP_PEER_AUTH_CHUNKS   26      /* Read only */
+#define LINUX_SCTP_LOCAL_AUTH_CHUNKS  27      /* Read only */
+#define LINUX_SCTP_GET_ASSOC_NUMBER   28      /* Read only */
+
+/* Internal Socket Options. Some of the sctp library functions are
+ * implemented using these socket options.
+ */
+#define LINUX_SCTP_SOCKOPT_BINDX_ADD  100     /* BINDX requests for adding addrs */
+#define LINUX_SCTP_SOCKOPT_BINDX_REM  101     /* BINDX requests for removing addrs. */
+#define LINUX_SCTP_SOCKOPT_PEELOFF    102     /* peel off association. */
+/* Options 104-106 are deprecated and removed. Do not use this space */
+#define LINUX_SCTP_SOCKOPT_CONNECTX_OLD       107     /* CONNECTX old requests. */
+#define LINUX_SCTP_GET_PEER_ADDRS     108             /* Get all peer addresss. */
+#define LINUX_SCTP_GET_LOCAL_ADDRS    109             /* Get all local addresss. */
+#define LINUX_SCTP_SOCKOPT_CONNECTX   110             /* CONNECTX requests. */
+#define LINUX_SCTP_SOCKOPT_CONNECTX3  111     /* CONNECTX requests (updated) */
+
+/* SCTP socket option used to read per endpoint association statistics. */
+#define LINUX_SCTP_GET_ASSOC_STATS    112      /* Read only */
+/* sctp option end */
 
 /* setsockopt/getsockopt define end */
 
@@ -170,6 +227,9 @@
 
 
 extern int sendit(struct thread *td, int s, struct msghdr *mp, int flags);
+
+/* for sctp */
+int linux2freebsd_opt(int level, int optname);
 
 static long
 linux2freebsd_ioctl(unsigned long request)
@@ -382,6 +442,99 @@ tcp_opt_convert(int optname)
 }
 
 static int
+sctp_opt_convert(int optname)
+{
+    switch(optname) {
+        case LINUX_SCTP_RTOINFO:
+            return SCTP_RTOINFO;
+        case LINUX_SCTP_ASSOCINFO:
+            return SCTP_ASSOCINFO;
+        case LINUX_SCTP_INITMSG:
+            return SCTP_INITMSG;
+        case LINUX_SCTP_NODELAY:
+            return SCTP_NODELAY;
+        case LINUX_SCTP_AUTOCLOSE:
+            return SCTP_AUTOCLOSE;
+        case LINUX_SCTP_SET_PEER_PRIMARY_ADDR:
+            return SCTP_SET_PEER_PRIMARY_ADDR;
+        case LINUX_SCTP_PRIMARY_ADDR:
+            return SCTP_PRIMARY_ADDR;
+        case LINUX_SCTP_ADAPTATION_LAYER:
+            return SCTP_ADAPTATION_LAYER;
+        case LINUX_SCTP_DISABLE_FRAGMENTS:
+            return SCTP_DISABLE_FRAGMENTS;
+        case LINUX_SCTP_PEER_ADDR_PARAMS:
+            return SCTP_PEER_ADDR_PARAMS;
+        case LINUX_SCTP_DEFAULT_SEND_PARAM:
+            return SCTP_DEFAULT_SEND_PARAM;
+        case LINUX_SCTP_EVENTS:
+            return SCTP_EVENTS;
+        case LINUX_SCTP_I_WANT_MAPPED_V4_ADDR:
+            return SCTP_I_WANT_MAPPED_V4_ADDR;
+        case LINUX_SCTP_MAXSEG:
+            return SCTP_MAXSEG;
+        case LINUX_SCTP_STATUS:
+            return SCTP_STATUS;
+        case LINUX_SCTP_GET_PEER_ADDR_INFO:
+            return SCTP_GET_PEER_ADDR_INFO;
+/*
+        case LINUX_SCTP_DELAYED_ACK_TIME:
+            return SCTP_DELAYED_ACK_TIME;
+        case LINUX_SCTP_DELAYED_ACK:
+            return SCTP_DELAYED_ACK;
+*/
+        case LINUX_SCTP_DELAYED_SACK:
+            return SCTP_DELAYED_SACK;
+        case LINUX_SCTP_CONTEXT:
+            return SCTP_CONTEXT;
+        case LINUX_SCTP_FRAGMENT_INTERLEAVE:
+            return SCTP_FRAGMENT_INTERLEAVE;
+        case LINUX_SCTP_PARTIAL_DELIVERY_POINT:
+            return SCTP_PARTIAL_DELIVERY_POINT;
+        case LINUX_SCTP_MAX_BURST:
+            return SCTP_MAX_BURST;
+        case LINUX_SCTP_AUTH_CHUNK:
+            return SCTP_AUTH_CHUNK;
+        case LINUX_SCTP_HMAC_IDENT:
+            return SCTP_HMAC_IDENT;
+        case LINUX_SCTP_AUTH_KEY:
+            return SCTP_AUTH_KEY;
+        case LINUX_SCTP_AUTH_ACTIVE_KEY:
+            return SCTP_AUTH_ACTIVE_KEY;
+        case LINUX_SCTP_AUTH_DELETE_KEY:
+            return SCTP_AUTH_DELETE_KEY;
+        case LINUX_SCTP_PEER_AUTH_CHUNKS:
+            return SCTP_PEER_AUTH_CHUNKS;
+        case LINUX_SCTP_LOCAL_AUTH_CHUNKS:
+            return SCTP_LOCAL_AUTH_CHUNKS;
+        case LINUX_SCTP_GET_ASSOC_NUMBER:
+            return SCTP_GET_ASSOC_NUMBER;
+/*
+        case LINUX_SCTP_SOCKOPT_BINDX_ADD:
+            return SCTP_SOCKOPT_BINDX_ADD;
+        case LINUX_SCTP_SOCKOPT_BINDX_REM:
+            return SCTP_SOCKOPT_BINDX_REM;
+        case LINUX_SCTP_SOCKOPT_PEELOFF:
+            return SCTP_SOCKOPT_PEELOFF;
+        case LINUX_SCTP_SOCKOPT_CONNECTX_OLD:
+            return SCTP_SOCKOPT_CONNECTX_OLD;
+        case LINUX_SCTP_GET_PEER_ADDRS:
+            return SCTP_GET_PEER_ADDRS;
+        case LINUX_SCTP_GET_LOCAL_ADDRS:
+            return SCTP_GET_LOCAL_ADDRS;
+        case LINUX_SCTP_SOCKOPT_CONNECTX:
+            return SCTP_SOCKOPT_CONNECTX;
+        case LINUX_SCTP_SOCKOPT_CONNECTX3:
+            return SCTP_SOCKOPT_CONNECTX3;
+        case LINUX_SCTP_GET_ASSOC_STATS:
+            return SCTP_GET_ASSOC_STATS;
+*/
+        default:
+            return optname;
+    }
+}
+
+int
 linux2freebsd_opt(int level, int optname)
 {
     switch(level) {
@@ -391,6 +544,9 @@ linux2freebsd_opt(int level, int optname)
             return ip_opt_convert(optname);
         case IPPROTO_TCP:
             return tcp_opt_convert(optname);
+		/* for sctp */
+        case IPPROTO_SCTP:
+            return sctp_opt_convert(optname);
         default:
             return -1;
     }
@@ -422,6 +578,21 @@ freebsd2linux_sockaddr(struct linux_sockaddr *linux,
     linux->sa_family = freebsd->sa_family;
 
     bcopy(freebsd->sa_data, linux->sa_data, freebsd->sa_len - sizeof(linux->sa_family));
+}
+
+/* for sctp */
+static void freebsd2linux_sctp_sndrcvinfo(struct linux_sctp_sndrcvinfo *linux,
+    struct sctp_sndrcvinfo *freebsd)
+{
+    linux->sinfo_stream = freebsd->sinfo_stream;
+    linux->sinfo_ssn = freebsd->sinfo_ssn;
+    linux->sinfo_flags = freebsd->sinfo_flags;
+    linux->sinfo_ppid = freebsd->sinfo_ppid;
+    linux->sinfo_context = freebsd->sinfo_context;
+    linux->sinfo_timetolive = freebsd->sinfo_timetolive;
+    linux->sinfo_tsn = freebsd->sinfo_tsn;
+    linux->sinfo_cumtsn = freebsd->sinfo_cumtsn;
+    linux->sinfo_assoc_id = freebsd->sinfo_assoc_id;
 }
 
 int
@@ -641,6 +812,40 @@ kern_fail:
 }
 
 ssize_t
+ff_readm(int fd, struct mbuf **mp)
+{
+    int rc;
+    int flags = MSG_DONTWAIT;
+    struct file *fp;
+    cap_rights_t rights;
+    struct mbuf *m;
+    struct uio auio = {0};
+    ssize_t cnt = 0;
+
+    if (mp == NULL) {
+        rc = EINVAL;
+        goto kern_fail;
+    }
+
+    auio.uio_resid = 2048;
+
+    rc = fget_read(curthread, fd, cap_rights_init(&rights, CAP_READ), &fp);
+    if (rc) {
+        goto kern_fail;
+    }
+    rc = soreceive((struct socket *)fp->f_data, 0, &auio, mp, 0, &flags);
+    fdrop(fp, curthread);    
+    if (rc) {
+        goto kern_fail;
+    }
+
+    return m_length(*mp, NULL);
+kern_fail:
+    ff_os_errno(rc);
+    return (-1);
+}
+
+ssize_t
 ff_write(int fd, const void *buf, size_t nbytes)
 {
     struct uio auio;
@@ -686,6 +891,36 @@ ff_writev(int fd, const struct iovec *iov, int iovcnt)
     rc = curthread->td_retval[0];
     
     return (rc);
+kern_fail:
+    ff_os_errno(rc);
+    return (-1);
+}
+
+ssize_t
+ff_writem(int fd, struct mbuf *m)
+{
+    int i, rc, len;
+    struct file *fp;
+    cap_rights_t rights;
+    struct socket *so;
+    ssize_t cnt;
+
+    cnt = m->m_pkthdr.len;
+    
+    rc = fget_write(curthread, fd, cap_rights_init(&rights, CAP_WRITE), &fp);
+    if (rc) {
+        goto kern_fail;
+    }
+
+    so = (struct socket *)fp->f_data;
+    rc = sosend(so, 0, NULL, m, 0, 0, curthread);
+    fdrop(fp, curthread);
+    
+    if (rc) {
+        goto kern_fail;
+    }
+
+    return (cnt);
 kern_fail:
     ff_os_errno(rc);
     return (-1);
@@ -1271,4 +1506,303 @@ ff_route_ctl(enum FF_ROUTE_CTL req, enum FF_ROUTE_FLAG flag,
 kern_fail:
     ff_os_errno(rc);
     return (-1);
+}
+
+#define SCTP_CONTROL_VEC_SIZE_RCV  16384
+
+int
+ff_sctp_recvmsg(int s, void *data, size_t len,
+    struct linux_sockaddr *from, socklen_t *fromlen,
+    struct linux_sctp_sndrcvinfo *sinfo, int *msg_flags)
+{
+    int rc;
+    struct iovec iov;
+    struct sockaddr sa_from;
+    struct sctp_sndrcvinfo usi;
+    struct sctp_generic_recvmsg_args ua;
+
+    iov.iov_base = data;
+    iov.iov_len = len;
+
+    ua.sd = s;
+    ua.mp = NULL;
+    ua.iov = &iov;
+    ua.iovlen = 1;
+    ua.from = &sa_from;
+    ua.fromlenaddr = fromlen;
+    ua.sinfo = &usi;
+    ua.msg_flags = msg_flags;
+
+    rc = sys_sctp_generic_recvmsg(curthread, &ua);
+    if (rc) {
+        ff_os_errno(rc);
+        return -1;
+    }
+
+    if (from != NULL)
+        freebsd2linux_sockaddr(from, &sa_from);
+
+    if (sinfo)
+        freebsd2linux_sctp_sndrcvinfo(sinfo, &usi);
+
+    return curthread->td_retval[0];
+}
+
+int
+ff_sctp_recvm(int s, struct mbuf **mp,
+    struct linux_sockaddr *from, socklen_t *fromlen,
+    struct linux_sctp_sndrcvinfo *sinfo, int *msg_flags)
+{
+    int rc;
+    struct sockaddr sa_from;
+    struct sctp_sndrcvinfo usi;
+    struct sctp_generic_recvmsg_args ua;
+
+    ua.sd = s;
+    ua.mp = mp;
+    ua.iov = NULL;
+    ua.iovlen = 0;
+    ua.from = &sa_from;
+    ua.fromlenaddr = fromlen;
+    ua.sinfo = &usi;
+    ua.msg_flags = msg_flags;
+    
+	rc = sys_sctp_generic_recvmsg(curthread, &ua);
+    if (rc) {
+        ff_os_errno(rc);
+        return -1;
+    }
+
+    if (from != NULL)
+        freebsd2linux_sockaddr(from, &sa_from);
+
+    if (sinfo)
+        freebsd2linux_sctp_sndrcvinfo(sinfo, &usi);
+    
+    return curthread->td_retval[0];
+}
+int
+ff_sctp_sendmsg(int s, const void *data, size_t len,
+    const struct sockaddr *to, socklen_t tolen, uint32_t ppid,
+    uint32_t flags, uint16_t stream_no, uint32_t timetolive,
+    uint32_t context)
+{
+//#ifdef SYS_sctp_generic_sendmsg
+#if 1
+    int rc;
+	struct sctp_sndrcvinfo sinfo;
+    struct sctp_generic_sendmsg_args ua;
+
+	memset(&sinfo, 0, sizeof(struct sctp_sndrcvinfo));
+	sinfo.sinfo_ppid = ppid;
+	sinfo.sinfo_flags = flags;
+	sinfo.sinfo_stream = stream_no;
+	sinfo.sinfo_timetolive = timetolive;
+	sinfo.sinfo_context = context;
+	sinfo.sinfo_assoc_id = 0;
+
+    ua.sd = s;
+    ua.m = NULL;
+    ua.msg = __DECONST(caddr_t, data);
+    ua.mlen = len;
+    ua.to = __DECONST(caddr_t, to);
+    ua.tolen = tolen;
+    ua.sinfo = &sinfo;
+    ua.flags = flags;
+    
+	rc = sys_sctp_generic_sendmsg(curthread, &ua);
+    if (rc) {
+        ff_os_errno(rc);
+        return -1;
+    }
+
+    return curthread->td_retval[0];
+#else
+    int rc;
+	struct msghdr msg;
+	struct sctp_sndrcvinfo *sinfo;
+	struct iovec iov;
+	char cmsgbuf[CMSG_SPACE(sizeof(struct sctp_sndrcvinfo))];
+	struct cmsghdr *cmsg;
+	struct sockaddr *who = NULL;
+	union {
+		struct sockaddr_in in;
+		struct sockaddr_in6 in6;
+	}     addr;
+
+	if ((tolen > 0) &&
+	    ((to == NULL) || (tolen < sizeof(struct sockaddr)))) {
+		rc = ff_EINVAL;
+		goto kern_fail;
+	}
+	if ((to != NULL) && (tolen > 0)) {
+		switch (to->sa_family) {
+		case AF_INET:
+			if (tolen != sizeof(struct sockaddr_in)) {
+				rc = ff_EINVAL;
+				return (-1);
+			}
+			if ((to->sa_len > 0) &&
+			    (to->sa_len != sizeof(struct sockaddr_in))) {
+				rc = ff_EINVAL;
+				goto kern_fail;
+			}
+			memcpy(&addr, to, sizeof(struct sockaddr_in));
+			addr.in.sin_len = sizeof(struct sockaddr_in);
+			break;
+		case AF_INET6:
+			if (tolen != sizeof(struct sockaddr_in6)) {
+				rc = ff_EINVAL;
+				goto kern_fail;
+			}
+			if ((to->sa_len > 0) &&
+			    (to->sa_len != sizeof(struct sockaddr_in6))) {
+				rc = ff_EINVAL;
+				goto kern_fail;
+			}
+			memcpy(&addr, to, sizeof(struct sockaddr_in6));
+			addr.in6.sin6_len = sizeof(struct sockaddr_in6);
+			break;
+		default:
+			rc = ff_EAFNOSUPPORT;
+			goto kern_fail;
+		}
+		who = (struct sockaddr *)&addr;
+	}
+	iov.iov_base = __DECONST(void *, data);
+	iov.iov_len = len;
+
+	if (who) {
+		msg.msg_name = (caddr_t)who;
+		msg.msg_namelen = who->sa_len;
+	} else {
+		msg.msg_name = (caddr_t)NULL;
+		msg.msg_namelen = 0;
+	}
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = cmsgbuf;
+	msg.msg_controllen = CMSG_SPACE(sizeof(struct sctp_sndrcvinfo));
+	msg.msg_flags = 0;
+	cmsg = (struct cmsghdr *)cmsgbuf;
+	cmsg->cmsg_level = IPPROTO_SCTP;
+	cmsg->cmsg_type = SCTP_SNDRCV;
+	cmsg->cmsg_len = CMSG_LEN(sizeof(struct sctp_sndrcvinfo));
+	sinfo = (struct sctp_sndrcvinfo *)CMSG_DATA(cmsg);
+	memset(sinfo, 0, sizeof(struct sctp_sndrcvinfo));
+	sinfo->sinfo_stream = stream_no;
+	sinfo->sinfo_ssn = 0;
+	sinfo->sinfo_flags = flags;
+	sinfo->sinfo_ppid = ppid;
+	sinfo->sinfo_context = context;
+	sinfo->sinfo_assoc_id = 0;
+	sinfo->sinfo_timetolive = timetolive;
+	return (ff_sendmsg(s, &msg, 0));
+
+kern_fail:
+    ff_os_errno(rc);
+    return (-1);
+#endif
+}
+
+int
+ff_sctp_sendm(int s, const struct mbuf *m,
+    const struct linux_sockaddr *to, socklen_t tolen, uint32_t ppid,
+    uint32_t flags, uint16_t stream_no, uint32_t timetolive,
+    uint32_t context)
+{
+    int rc;
+    struct sctp_sndrcvinfo sinfo;
+    struct sctp_generic_sendmsg_args ua;
+
+    memset(&sinfo, 0, sizeof(struct sctp_sndrcvinfo));
+    sinfo.sinfo_ppid = ppid;
+    sinfo.sinfo_flags = flags;
+    sinfo.sinfo_stream = stream_no;
+    sinfo.sinfo_timetolive = timetolive;
+    sinfo.sinfo_context = context;
+    sinfo.sinfo_assoc_id = 0;
+
+    ua.sd = s;
+    ua.m = __DECONST(struct mbuf *, m);
+    ua.msg = NULL;
+    ua.mlen = m->m_pkthdr.len;
+    ua.to = __DECONST(caddr_t, to);
+    ua.tolen = tolen;
+    ua.sinfo = &sinfo;
+    ua.flags = flags;
+    
+	rc = sys_sctp_generic_sendmsg(curthread, &ua);
+    if (rc) {
+        ff_os_errno(rc);
+        return -1;
+    }
+
+    return curthread->td_retval[0];
+}
+
+#undef SCTP_CONTROL_VEC_SIZE_RCV
+
+struct mbuf *
+ff_datatombuf(caddr_t data, ssize_t length)
+{
+    struct mbuf *m;
+    struct uio uio;
+	struct iovec iov[1];
+
+    iov[0].iov_base = data;
+	iov[0].iov_len = length;
+
+    uio.uio_iov = iov;
+	uio.uio_iovcnt = 1;
+	uio.uio_segflg = UIO_USERSPACE;
+	uio.uio_rw = UIO_WRITE;
+	uio.uio_td = NULL;
+	uio.uio_offset = 0; 
+    uio.uio_resid = length;
+
+    m = m_uiotombuf(&uio, M_WAITOK, length, 0, 0);
+    if (m == NULL) {
+        printf("%s %d\n", __FUNCTION__, __LINE__);
+    }
+
+    m->m_pkthdr.len = length;
+    
+    return m;
+}
+
+struct mbuf *
+ff_mbuf_dup(struct mbuf *m, int total)
+{
+    struct mbuf *n, *hdr;
+
+    if (m == NULL)
+        return NULL;
+
+    hdr = m_gethdr(M_NOWAIT, m->m_type);
+    if (hdr == NULL)
+        return NULL;
+#if 0
+    n = m_getm2(NULL, max(total, 1), M_WAITOK, MT_DATA, 0);
+	if (n == NULL)
+		goto err_out;
+
+    bcopy(m->m_data, n->m_data, m->m_len);
+    n->m_len = m->m_len;
+#else
+    n = m_copym(m, 0, M_COPYALL, M_NOWAIT);
+    if (n == NULL)
+		goto err_out;
+#endif
+
+    hdr->m_len = 0;
+    hdr->m_pkthdr.len = total;
+    hdr->m_next = n;
+
+    return hdr;
+err_out:
+    if (hdr != NULL)
+        m_freem(hdr);
+
+    return NULL;
 }
